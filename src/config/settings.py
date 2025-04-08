@@ -18,8 +18,8 @@ class BaseAppSettings(BaseSettings):
 
     LOGIN_TIME_DAYS: int = 7
 
-    EMAIL_HOST: str = os.getenv("EMAIL_HOST", "host")
-    EMAIL_PORT: int = int(os.getenv("EMAIL_PORT", 25))
+    EMAIL_HOST: str = os.getenv("EMAIL_HOST", "localhost")
+    EMAIL_PORT: int = int(os.getenv("EMAIL_PORT", 1025))
     EMAIL_HOST_USER: str = os.getenv("EMAIL_HOST_USER", "testuser")
     EMAIL_HOST_PASSWORD: str = os.getenv("EMAIL_HOST_PASSWORD", "test_password")
     EMAIL_USE_TLS: bool = os.getenv("EMAIL_USE_TLS", "False").lower() == "true"
@@ -49,6 +49,9 @@ class Settings(BaseAppSettings):
 
 
 class TestingSettings(BaseAppSettings):
+    EMAIL_HOST: str = os.getenv("EMAIL_HOST", "mailhog")
+    EMAIL_PORT: int = int(os.getenv("EMAIL_PORT", 1025))
+    MAILHOG_API_PORT: int = int(os.getenv("MAILHOG_API_PORT", 8025))
     SECRET_KEY_ACCESS: str = "SECRET_KEY_ACCESS"
     SECRET_KEY_REFRESH: str = "SECRET_KEY_REFRESH"
     JWT_SIGNING_ALGORITHM: str = "HS256"
