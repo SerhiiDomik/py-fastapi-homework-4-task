@@ -12,7 +12,6 @@ from config import (
     get_settings,
     BaseAppSettings,
     get_accounts_email_notificator,
-    settings,
 )
 from database import (
     get_db,
@@ -449,6 +448,7 @@ async def reset_password(
 async def login_user(
     login_data: UserLoginRequestSchema,
     db: AsyncSession = Depends(get_db),
+    settings: BaseAppSettings = Depends(get_settings),
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
 ) -> UserLoginResponseSchema:
     """

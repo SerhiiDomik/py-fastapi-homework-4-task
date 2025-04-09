@@ -9,7 +9,7 @@ services:
     environment:
       - PYTHONPATH=/usr/src/fastapi
       - ENVIRONMENT=testing
-      - EMAIL_HOST=localhost
+      - EMAIL_HOST=mailhog_theater_test
       - EMAIL_PORT=1025
       - EMAIL_HOST_USER=testuser@mate.com
       - EMAIL_HOST_PASSWORD=test_password

@@ -1,60 +1,30 @@
-import logging
 from typing import cast
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import HttpUrl
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import UserModel, UserProfileModel, UserGroupEnum, UserGroupModel
+from database.models.accounts import UserModel, UserProfileModel, UserGroupEnum, UserGroupModel, GenderEnum
 from exceptions import BaseSecurityError, S3FileUploadError
-from schemas.profiles import ProfileCreateRequest, ProfileResponse, GenderEnum
+from schemas.profiles import ProfileCreateSchema, ProfileResponseSchema
 from security.http import get_token
 from security.interfaces import JWTAuthManagerInterface
 from storages.interfaces import S3StorageInterface
 from config.dependencies import (
     get_s3_storage_client,
     get_jwt_auth_manager,
-    get_settings,
 )
 from database import get_db
 
 router = APIRouter()
-security = HTTPBearer()
-
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: AsyncSession = Depends(get_db),
-    auth_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
-) -> UserModel:
-    try:
-        payload = auth_manager.decode_access_token(credentials.credentials)
-        user_id = payload.get("sub")
-        if not user_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
-            )
-        user = await db.get(UserModel, user_id)
-        if not user or not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or inactive",
-            )
-        return user
-    except Exception as e:
-        logging.error(f"Auth error: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-        )
 
 
 @router.post(
-    "/users/{user_id}/profile",
-    response_model=ProfileResponse,
+    "/users/{user_id}/profile/",
+    response_model=ProfileResponseSchema,
     status_code=status.HTTP_201_CREATED,
+    summary=status.HTTP_201_CREATED,
 )
 async def create_profile(
     user_id: int,
@@ -62,18 +32,23 @@ async def create_profile(
     jwt_manager: JWTAuthManagerInterface = Depends(get_jwt_auth_manager),
     db: AsyncSession = Depends(get_db),
     s3_client: S3StorageInterface = Depends(get_s3_storage_client),
-    profile_data: ProfileCreateRequest = Depends(ProfileCreateRequest.from_form),
-) -> ProfileResponse:
+    profile_data: ProfileCreateSchema = Depends(ProfileCreateSchema.from_form),
+) -> ProfileResponseSchema:
 
     try:
         payload = jwt_manager.decode_access_token(token)
         token_user_id = payload.get("user_id")
     except BaseSecurityError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e)
+        )
 
     if user_id != token_user_id:
         data = (
-            select(UserGroupModel).join(UserModel).where(UserModel.id == token_user_id)
+            select(UserGroupModel).
+            join(UserModel).
+            where(UserModel.id == token_user_id)
         )
         result = await db.execute(data)
         user_group = result.scalars().first()
@@ -105,7 +80,10 @@ async def create_profile(
     avatar_key = f"avatars/{user.id}_{profile_data.avatar.filename}"
 
     try:
-        await s3_client.upload_file(file_name=avatar_key, file_data=avatar_bytes)
+        await s3_client.upload_file(
+            file_name=avatar_key,
+            file_data=avatar_bytes
+        )
     except S3FileUploadError as e:
         print(f"Error uploading avatar to S3: {e}")
         raise HTTPException(
@@ -129,7 +107,7 @@ async def create_profile(
 
     avatar_url = await s3_client.get_file_url(new_profile.avatar)
 
-    return ProfileResponse(
+    return ProfileResponseSchema(
         id=new_profile.id,
         user_id=new_profile.user_id,
         first_name=new_profile.first_name,

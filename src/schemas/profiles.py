@@ -1,7 +1,6 @@
-from fastapi import UploadFile, File, Form
-from pydantic import BaseModel, Field, field_validator, ConfigDict, HttpUrl
+from fastapi import UploadFile, File, Form, HTTPException
+from pydantic import BaseModel, field_validator, HttpUrl
 from datetime import date
-from enum import Enum
 from validation import (
     validate_name,
     validate_image,
@@ -10,69 +9,108 @@ from validation import (
 )
 
 
-class GenderEnum(str, Enum):
-    MALE = "male"
-    FEMALE = "female"
-    OTHER = "other"
-
-
-class ProfileBase(BaseModel):
+class ProfileCreateSchema(BaseModel):
     first_name: str
     last_name: str
     gender: str
     date_of_birth: date
     info: str
-
-    @field_validator("first_name", "last_name")
-    @classmethod
-    def validate_names(cls, value: str) -> str:
-        return validate_name(value)
-
-    @field_validator("gender")
-    @classmethod
-    def validate_gender(cls, value: GenderEnum) -> GenderEnum:
-        return validate_gender(value)
-
-    @field_validator("date_of_birth")
-    @classmethod
-    def validate_birth_date(cls, value: date) -> int:
-        return validate_birth_date(value)
-
-
-class ProfileCreateRequest(ProfileBase):
-    avatar: UploadFile = Field(..., description="User avatar image")
+    avatar: UploadFile
 
     @classmethod
     def from_form(
-        cls,
-        first_name: str = Form(...),
-        last_name: str = Form(...),
-        gender: str = Form(...),
-        date_of_birth: date = Form(...),
-        info: str = Form(...),
-        avatar: UploadFile = File(...),
-    ):
+            cls,
+            first_name: str = Form(...),
+            last_name: str = Form(...),
+            gender: str = Form(...),
+            date_of_birth: date = Form(...),
+            info: str = Form(...),
+            avatar: UploadFile = File(...)
+    ) -> "ProfileCreateSchema":
         return cls(
             first_name=first_name,
             last_name=last_name,
             gender=gender,
             date_of_birth=date_of_birth,
             info=info,
-            avatar=avatar,
+            avatar=avatar
         )
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_name_field(cls, name: str) -> str:
+        try:
+            validate_name(name)
+            return name.lower()
+        except ValueError as e:
+            raise HTTPException(
+                status_code=422,
+                detail=[{
+                    "type": "value_error",
+                    "loc": ["first_name" if "first_name" in name else "last_name"],
+                    "msg": str(e),
+                    "input": name
+                }]
+            )
 
     @field_validator("avatar")
     @classmethod
-    def validate_avatar(cls, value: UploadFile) -> None:
+    def validate_avatar(cls, avatar: UploadFile) -> UploadFile:
         try:
-            return validate_image(value)
+            validate_image(avatar)
+            return avatar
         except ValueError as e:
-            raise ValueError(str(e)) from e
+            raise HTTPException(
+                status_code=422,
+                detail=[{
+                    "type": "value_error",
+                    "loc": ["avatar"],
+                    "msg": str(e),
+                    "input": avatar.filename
+                }]
+            )
+
+    @field_validator("gender")
+    @classmethod
+    def validate_gender(cls, gender: str) -> str:
+        try:
+            validate_gender(gender)
+            return gender
+        except ValueError as e:
+            raise HTTPException(
+                status_code=422,
+                detail=[{
+                    "type": "value_error",
+                    "loc": ["gender"],
+                    "msg": str(e),
+                    "input": gender
+                }]
+            )
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_date_of_birth(cls, date_of_birth: date) -> date:
+        try:
+            validate_birth_date(date_of_birth)
+            return date_of_birth
+        except ValueError as e:
+            raise HTTPException(
+                status_code=422,
+                detail=[{
+                    "type": "value_error",
+                    "loc": ["date_of_birth"],
+                    "msg": str(e),
+                    "input": str(date_of_birth)
+                }]
+            )
 
 
-class ProfileResponse(ProfileBase):
+class ProfileResponseSchema(BaseModel):
     id: int
     user_id: int
+    first_name: str
+    last_name: str
+    gender: str
+    date_of_birth: date
+    info: str
     avatar: HttpUrl
-
-    model_config = ConfigDict(from_attributes=True)
