@@ -53,6 +53,24 @@ class ProfileCreateSchema(BaseModel):
                 }]
             )
 
+
+    @field_validator("info")
+    @classmethod
+    def validate_info(cls, info: str) -> str:
+        cleaned_info = info.strip()
+        if not cleaned_info:
+            raise HTTPException(
+                status_code=422,
+                detail=[{
+                    "type": "value_error",
+                    "loc": ["info"],
+                    "msg": "Info field cannot be empty or contain only spaces.",
+                    "input": info
+                }]
+            )
+        return cleaned_info
+
+
     @field_validator("avatar")
     @classmethod
     def validate_avatar(cls, avatar: UploadFile) -> UploadFile:
